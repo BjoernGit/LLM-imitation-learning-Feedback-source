@@ -1,0 +1,34 @@
+using System.Threading;
+using UnityEngine;
+
+public class LmStudioDemo : MonoBehaviour
+{
+    private CancellationTokenSource _cts;
+
+    private async void Start()
+    {
+        _cts = new CancellationTokenSource();
+
+        var client = new LmStudioClient("http://localhost:1234/v1", "lm-studio");
+
+        var reply = await client.ChatAsync(
+            model: "your-model-identifier",
+            messages: new[]
+            {
+                ("system", "You are a helpful assistant."),
+                ("user", "Sag mir in einem Satz, wie ich in Unity sauber mit LM Studio rede.")
+            },
+            temperature: 0.4f,
+            maxTokens: 200,
+            ct: _cts.Token
+        );
+
+        Debug.Log(reply);
+    }
+
+    private void OnDestroy()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}
