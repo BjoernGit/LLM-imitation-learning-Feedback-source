@@ -16,7 +16,7 @@ public class LmStudioDemo : MonoBehaviour
             messages: new[]
             {
                 ("system", "You are a helpful assistant."),
-                ("user", "Sag mir in einem Satz, wie ich in Unity sauber mit LM Studio rede.")
+                ("user", "Tell me in one sentence how to talk to LM Studio cleanly from Unity.")
             },
             temperature: 0.4f,
             maxTokens: 200,
