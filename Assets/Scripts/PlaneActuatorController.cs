@@ -77,6 +77,7 @@ public class PlaneActuatorController : MonoBehaviour
     [Serializable]
     public struct ActuatorCommand
     {
+        public string logic;     // optional reasoning text from the LLM
         public float aileron;     // roll, -1..1
         public float elevator;    // pitch, -1..1
         public float rudder;      // yaw, -1..1

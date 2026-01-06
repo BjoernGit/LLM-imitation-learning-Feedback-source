@@ -16,18 +16,24 @@ public class LmStudioActuatorTicker : MonoBehaviour
     [SerializeField] private string apiKey = "lm-studio";
     [SerializeField] private string model = "your-model-identifier";
     [SerializeField, TextArea(3, 10)] private string systemPrompt =
-        "You control an aircraft. Respond only with a JSON object containing the fields " +
-        "aileron (-1..1), elevator (-1..1), rudder (-1..1), throttle (0..1), airbrake (0..1). " +
-        "Do not include wheel brakes. Example:\n" +
+        "You control an aircraft. Respond only with one JSON object. No markdown, no code fences, no extra text. " +
+        "Include a concise reasoning string field named \"logic\" (<= 1 sentence; describe position, forward, " +
+        "targetPosition, altitude, speed; compute desired direction = targetPosition - position, compare to forward, " +
+        "say how to align heading, then state intended course correction). Then include actuator fields: aileron (-1..1), " +
+        "elevator (-1..1), rudder (-1..1), throttle (0..1), airbrake (0..1). Do not include wheel brakes or any " +
+        "other fields. Example:\n" +
         "{\n" +
-        "  \"aileron\": 0.1,\n" +
-        "  \"elevator\": -0.2,\n" +
-        "  \"rudder\": 0.0,\n" +
-        "  \"throttle\": 0.75,\n" +
+        "  \"logic\": \"Position X,Y,Z; forward Fx,Fy,Fz; target Tx,Ty,Tz. DesiredDir = normalize(T-P) = Dx,Dy,Dz; " +
+        "forward dot desired = 0.2 so I'm not pointed at target; yaw/roll left and pitch down slightly to align, " +
+        "add throttle to close at moderate speed.\",\n" +
+        "  \"aileron\": -0.25,\n" +
+        "  \"elevator\": -0.1,\n" +
+        "  \"rudder\": -0.1,\n" +
+        "  \"throttle\": 0.65,\n" +
         "  \"airbrake\": 0.0\n" +
         "}";
     [SerializeField] private float temperature = 0.4f;
-    [SerializeField] private int maxTokens = 120;
+    [SerializeField] private int maxTokens = 300;
 
     [Header("Timing")]
     [SerializeField] private float tickIntervalSeconds = 0.5f;
@@ -162,7 +168,6 @@ public class LmStudioActuatorTicker : MonoBehaviour
     {
         var cmd = actuator ? actuator.Current : default;
         var targetPos = packageTarget ? packageTarget.position : Vector3.zero;
-        var targetFwd = packageTarget ? packageTarget.forward : Vector3.forward;
         return new PlaneObservation
         {
             position = transform.position,
@@ -170,7 +175,6 @@ public class LmStudioActuatorTicker : MonoBehaviour
             up = transform.up,
             velocity = _velocity,
             targetPosition = targetPos,
-            targetForward = targetFwd,
             lastCommand = cmd
         };
     }
@@ -215,7 +219,6 @@ public class LmStudioActuatorTicker : MonoBehaviour
         public Vector3 up;
         public Vector3 velocity;
         public Vector3 targetPosition;
-        public Vector3 targetForward;
         public PlaneActuatorController.ActuatorCommand lastCommand;
     }
 }

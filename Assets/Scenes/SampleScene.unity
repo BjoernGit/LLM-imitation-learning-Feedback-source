@@ -637,11 +637,9 @@ MonoBehaviour:
   baseUrl: http://localhost:1234/v1
   apiKey: lm-studio
   model: your-model-identifier
-  systemPrompt: You control an aircraft. Respond only with a JSON object containing
-    the fields aileron (-1..1), elevator (-1..1), rudder (-1..1), throttle (0..1),
-    airbrake (0..1). Do not include wheel brakes. Example:\n{\n  "aileron": 0.1,\n  "elevator": -0.2,\n  "rudder": 0.0,\n  "throttle": 0.75,\n  "airbrake": 0.0\n}
+  systemPrompt: You control an aircraft. Respond only with one JSON object. No markdown, no code fences, no extra text. Include a concise reasoning string field named "logic" (<= 1 sentence; describe position, forward, targetPosition, altitude, speed; compute desired direction = targetPosition - position, compare to forward, say how to align heading, then state intended course correction). Then include actuator fields: aileron (-1..1), elevator (-1..1), rudder (-1..1), throttle (0..1), airbrake (0..1). Do not include wheel brakes or any other fields. Example:\n{\n  "logic": "Position X,Y,Z; forward Fx,Fy,Fz; target Tx,Ty,Tz. DesiredDir = normalize(T-P) = Dx,Dy,Dz; forward dot desired = 0.2 so I'm not pointed at target; yaw/roll left and pitch down slightly to align, add throttle to close at moderate speed.",\n  "aileron": -0.25,\n  "elevator": -0.1,\n  "rudder": -0.1,\n  "throttle": 0.65,\n  "airbrake": 0.0\n}
   temperature: 0.4
-  maxTokens: 120
+  maxTokens: 200
   tickIntervalSeconds: 0.5
   requestTimeoutSeconds: 8
   autoStart: 1
@@ -1603,3 +1601,5 @@ SceneRoots:
   - {fileID: 570514729}
   - {fileID: 798777158}
   - {fileID: 1257349810}
+
+
