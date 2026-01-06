@@ -60,6 +60,16 @@ public class SimplePlanePhysics : MonoBehaviour
     public void SetWheelBrakes(float value) => _actuators.wheelBrakes = Mathf.Clamp01(value);
 
     /// <summary>
+    /// Apply a full actuator command coming from the LLM/controller (used by PlaneActuatorController).
+    /// </summary>
+    public void ApplyActuatorCommand(PlaneActuatorController.ActuatorCommand cmd)
+    {
+        _actuators = cmd;
+        _manualThrottle = cmd.throttle;
+        _manualThrottleInitialized = true;
+    }
+
+    /// <summary>
     /// Keyboard debug mapping: A/D roll, W/S pitch, Q/E yaw, Shift/Ctrl throttle, B airbrake, Space wheel brakes.
     /// Keyboard overrides the current frame.
     /// </summary>

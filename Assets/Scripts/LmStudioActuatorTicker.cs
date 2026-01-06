@@ -15,9 +15,17 @@ public class LmStudioActuatorTicker : MonoBehaviour
     [SerializeField] private string baseUrl = "http://localhost:1234/v1";
     [SerializeField] private string apiKey = "lm-studio";
     [SerializeField] private string model = "your-model-identifier";
-    [SerializeField, TextArea] private string systemPrompt =
+    [SerializeField, TextArea(3, 10)] private string systemPrompt =
         "You control an aircraft. Respond only with a JSON object containing the fields " +
-        "aileron (-1..1), elevator (-1..1), rudder (-1..1), throttle (0..1), airbrake (0..1), wheelBrakes (0..1).";
+        "aileron (-1..1), elevator (-1..1), rudder (-1..1), throttle (0..1), airbrake (0..1). " +
+        "Do not include wheel brakes. Example:\n" +
+        "{\n" +
+        "  \"aileron\": 0.1,\n" +
+        "  \"elevator\": -0.2,\n" +
+        "  \"rudder\": 0.0,\n" +
+        "  \"throttle\": 0.75,\n" +
+        "  \"airbrake\": 0.0\n" +
+        "}";
     [SerializeField] private float temperature = 0.4f;
     [SerializeField] private int maxTokens = 120;
 
@@ -26,6 +34,9 @@ public class LmStudioActuatorTicker : MonoBehaviour
     [SerializeField] private float requestTimeoutSeconds = 8f;
     [SerializeField] private bool autoStart = true;
     [SerializeField] private bool logRawReply = false;
+
+    [Header("Target")]
+    [SerializeField] private Transform packageTarget;
 
     [Header("References")]
     [SerializeField] private PlaneActuatorController actuator;
@@ -150,12 +161,16 @@ public class LmStudioActuatorTicker : MonoBehaviour
     private PlaneObservation BuildObservation()
     {
         var cmd = actuator ? actuator.Current : default;
+        var targetPos = packageTarget ? packageTarget.position : Vector3.zero;
+        var targetFwd = packageTarget ? packageTarget.forward : Vector3.forward;
         return new PlaneObservation
         {
             position = transform.position,
             forward = transform.forward,
             up = transform.up,
             velocity = _velocity,
+            targetPosition = targetPos,
+            targetForward = targetFwd,
             lastCommand = cmd
         };
     }
@@ -199,6 +214,8 @@ public class LmStudioActuatorTicker : MonoBehaviour
         public Vector3 forward;
         public Vector3 up;
         public Vector3 velocity;
+        public Vector3 targetPosition;
+        public Vector3 targetForward;
         public PlaneActuatorController.ActuatorCommand lastCommand;
     }
 }
