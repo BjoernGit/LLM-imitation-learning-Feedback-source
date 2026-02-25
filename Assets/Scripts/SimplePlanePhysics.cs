@@ -38,7 +38,7 @@ public class SimplePlanePhysics : MonoBehaviour
     private void Update()
     {
         if (pullFromLmStudio && actuatorSource != null)
-            _actuators = actuatorSource.Current;
+            ApplyLlmDirectionalInput(actuatorSource.Current);
 
         if (enableKeyboardDebug)
             ApplyKeyboardDebug();
@@ -59,14 +59,24 @@ public class SimplePlanePhysics : MonoBehaviour
     /// <summary>Setter with clamping for wheel brakes (0..1).</summary>
     public void SetWheelBrakes(float value) => _actuators.wheelBrakes = Mathf.Clamp01(value);
 
-    /// <summary>
-    /// Apply a full actuator command coming from the LLM/controller (used by PlaneActuatorController).
-    /// </summary>
-    public void ApplyActuatorCommand(PlaneActuatorController.ActuatorCommand cmd)
+    private void ApplyLlmDirectionalInput(PlaneActuatorController.ActuatorCommand cmd)
     {
-        _actuators = cmd;
-        _manualThrottle = cmd.throttle;
-        _manualThrottleInitialized = true;
+        if (!_manualThrottleInitialized)
+        {
+            _manualThrottle = _actuators.throttle;
+            _manualThrottleInitialized = true;
+        }
+
+        _actuators.aileron = Mathf.Clamp(cmd.aileron, -1f, 1f);
+        _actuators.elevator = Mathf.Clamp(cmd.elevator, -1f, 1f);
+        _actuators.rudder = Mathf.Clamp(cmd.rudder, -1f, 1f);
+
+        float throttleDir = Mathf.Clamp(cmd.throttle, -1f, 1f);
+        _manualThrottle = Mathf.Clamp01(_manualThrottle + throttleDir * throttleChangeRate * Time.deltaTime);
+        _actuators.throttle = _manualThrottle;
+
+        _actuators.airbrake = cmd.airbrake > 0.5f ? 1f : 0f;
+        _actuators.wheelBrakes = cmd.wheelBrakes > 0.5f ? 1f : 0f;
     }
 
     /// <summary>

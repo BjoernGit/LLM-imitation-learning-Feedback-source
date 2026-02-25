@@ -17,20 +17,45 @@ public class LmStudioActuatorTicker : MonoBehaviour
     [SerializeField] private string model = "your-model-identifier";
     [SerializeField, TextArea(3, 10)] private string systemPrompt =
         "You control an aircraft. Respond only with one JSON object. No markdown, no code fences, no extra text. " +
-        "Include a concise reasoning string field named \"logic\" (<= 1 sentence; describe position, forward, " +
-        "targetPosition, altitude, speed; compute desired direction = targetPosition - position, compare to forward, " +
-        "say how to align heading, then state intended course correction). Then include actuator fields: aileron (-1..1), " +
-        "elevator (-1..1), rudder (-1..1), throttle (0..1), airbrake (0..1). Do not include wheel brakes or any " +
-        "other fields. Example:\n" +
+        "Include a reasoning string field named \"logic\". In logic, follow these steps EXACTLY:\n\n" +
+        "STEP 1 - ATTITUDE CHECK (PRIORITY!):\n" +
+        "Compute: right = cross(up, forward). Check right.y to determine bank angle:\n" +
+        "- right.y > 0.1 => aircraft is banking RIGHT (right wing is lower)\n" +
+        "- right.y < -0.1 => aircraft is banking LEFT (left wing is lower)\n" +
+        "- |right.y| <= 0.1 => aircraft is upright\n" +
+        "Also check up.y: up.y=1 upright, up.y near 0 on its side, up.y<0 inverted.\n" +
+        "- The aircraft MUST fly upright at all times. Only allow banking during an active turn.\n" +
+        "- If banking and NOT turning: correct roll (banking right => aileron=-1, banking left => aileron=+1), rudder=0, elevator=0.\n\n" +
+        "STEP 2 - NAVIGATION:\n" +
+        "1) toTarget = targetPosition - position (SUBTRACT position from target!)\n" +
+        "2) desiredDir = normalize(toTarget)\n" +
+        "3) navCross = cross(forward, desiredDir)\n" +
+        "4) If navCross.y > 0 => target is to the RIGHT => rudder=+1, aileron=+1. If navCross.y < 0 => target is LEFT => rudder=-1, aileron=-1. If nearly aligned (|navCross.y| < 0.1) => rudder=0, aileron=0.\n" +
+        "5) dotUp = dot(up, desiredDir). If dotUp > 0 => target is ABOVE => elevator=+1. If dotUp < 0 => target is BELOW => elevator=-1.\n" +
+        "6) Choose throttle: +1 to speed up, 0 to hold, -1 to slow down.\n\n" +
+        "STEP 3 - DESCRIBE YOUR MANEUVER in the logic field:\n" +
+        "- State current attitude: upright / banking left / banking right / inverted.\n" +
+        "- State planned maneuver: straight flight / turning left / turning right / leveling out / correcting roll.\n" +
+        "- State if current bank angle is proportional to the maneuver or needs correction.\n\n" +
+        "Directional input fields (like holding a keyboard key): " +
+        "aileron (-1 = roll left, 0 = neutral, 1 = roll right), " +
+        "elevator (-1 = pitch down, 0 = neutral, 1 = pitch up), " +
+        "rudder (-1 = yaw left, 0 = neutral, 1 = yaw right), " +
+        "throttle (-1 = decrease, 0 = hold, 1 = increase), " +
+        "airbrake (0 = off, 1 = on). " +
+        "All values must be exactly -1, 0, or 1 (integers). Do not include wheel brakes or any other fields. Example:\n" +
         "{\n" +
-        "  \"logic\": \"Position X,Y,Z; forward Fx,Fy,Fz; target Tx,Ty,Tz. DesiredDir = normalize(T-P) = Dx,Dy,Dz; " +
-        "forward dot desired = 0.2 so I'm not pointed at target; yaw/roll left and pitch down slightly to align, " +
-        "add throttle to close at moderate speed.\",\n" +
-        "  \"aileron\": -0.25,\n" +
-        "  \"elevator\": -0.1,\n" +
-        "  \"rudder\": -0.1,\n" +
-        "  \"throttle\": 0.65,\n" +
-        "  \"airbrake\": 0.0\n" +
+        "  \"logic\": \"ATTITUDE: right=cross(up,fwd)=cross((0,0.95,0.3),(1,0,0))=(0,0.3,-0.95); right.y=0.3>0.1 => banking right. " +
+        "up.y=0.95 => mostly upright. " +
+        "NAV: toTarget=target-pos=(-5,-15,-38); desiredDir=norm(toTarget)=(-0.12,-0.36,-0.92); " +
+        "navCross=cross(fwd,desiredDir)=(0,0.92,-0.36); navCross.y=0.92>0 => target is RIGHT. " +
+        "dotUp=dot(up,desiredDir)=-0.36<0 => target is BELOW. " +
+        "MANEUVER: turning right, bank is proportional to turn, pitch down to descend.\",\n" +
+        "  \"aileron\": 1,\n" +
+        "  \"elevator\": -1,\n" +
+        "  \"rudder\": 1,\n" +
+        "  \"throttle\": 1,\n" +
+        "  \"airbrake\": 0\n" +
         "}";
     [SerializeField] private float temperature = 0.4f;
     [SerializeField] private int maxTokens = 300;
@@ -40,6 +65,7 @@ public class LmStudioActuatorTicker : MonoBehaviour
     [SerializeField] private float requestTimeoutSeconds = 8f;
     [SerializeField] private bool autoStart = true;
     [SerializeField] private bool logRawReply = false;
+    [SerializeField] private float llmTimeScale = 0.1f;
 
     [Header("Target")]
     [SerializeField] private Transform packageTarget;
@@ -91,12 +117,14 @@ public class LmStudioActuatorTicker : MonoBehaviour
 
         _cts = new CancellationTokenSource();
         _loopRunning = true;
+        Time.timeScale = llmTimeScale;
         _ = RunLoopAsync(_cts.Token);
     }
 
     public void StopLoop()
     {
         _loopRunning = false;
+        Time.timeScale = 1f;
         if (_cts != null)
         {
             _cts.Cancel();
@@ -122,6 +150,14 @@ public class LmStudioActuatorTicker : MonoBehaviour
                 }
             }
             first = false;
+
+            // Skip tick while the game is paused
+            if (Time.timeScale == 0f)
+                continue;
+#if UNITY_EDITOR
+            if (UnityEditor.EditorApplication.isPaused)
+                continue;
+#endif
 
             try
             {

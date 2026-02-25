@@ -9,19 +9,12 @@ public class PlaneActuatorController : MonoBehaviour
 {
     [SerializeField] private ActuatorCommand _current; // Latest command after clamping
     [SerializeField] private bool _logParseErrors = true;
-    [SerializeField] private SimplePlanePhysics _flightModel; // Optional link to apply commands directly
     [SerializeField] private bool _logIncomingJson = false;
 
     /// <summary>
     /// Latest parsed and clamped command.
     /// </summary>
     public ActuatorCommand Current => _current;
-
-    private void Awake()
-    {
-        if (!_flightModel)
-            _flightModel = GetComponent<SimplePlanePhysics>();
-    }
 
     /// <summary>
     /// Call this with the JSON string returned by the LLM.
@@ -38,9 +31,6 @@ public class PlaneActuatorController : MonoBehaviour
             var cmd = JsonUtility.FromJson<ActuatorCommand>(cleaned);
             cmd.Clamp01();
             _current = cmd;
-            _flightModel?.ApplyActuatorCommand(_current);
-
-            // TODO: apply to your flight model here (forces/inputs/animations).
             return true;
         }
         catch (Exception ex)
@@ -90,7 +80,7 @@ public class PlaneActuatorController : MonoBehaviour
             aileron = Mathf.Clamp(aileron, -1f, 1f);
             elevator = Mathf.Clamp(elevator, -1f, 1f);
             rudder = Mathf.Clamp(rudder, -1f, 1f);
-            throttle = Mathf.Clamp01(throttle);
+            throttle = Mathf.Clamp(throttle, -1f, 1f);
             airbrake = Mathf.Clamp01(airbrake);
             wheelBrakes = Mathf.Clamp01(wheelBrakes);
         }
