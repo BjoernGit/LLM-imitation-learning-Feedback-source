@@ -641,14 +641,14 @@ MonoBehaviour:
   model: your-model-identifier
   systemPrompt: "You control an aircraft. Respond only with one JSON object. No markdown,
     no code fences, no extra text. Include a reasoning string field named \"logic\".
-    In logic, follow these steps EXACTLY:\r\n\r\nSTEP 1 - ATTITUDE CHECK (PRIORITY!):\r\nCompute:
-    right = cross(up, forward). Check right.y to determine bank angle:\r\n- right.y
-    > 0.1 => aircraft is banking RIGHT (right wing is lower)\r\n- right.y < -0.1
-    => aircraft is banking LEFT (left wing is lower)\r\n- |right.y| <= 0.1 => aircraft
-    is upright\r\nAlso check up.y: up.y=1 upright, up.y near 0 on its side, up.y<0
-    inverted.\r\n- The aircraft MUST fly upright at all times. Only allow banking
-    during an active turn.\r\n- If banking and NOT turning: correct roll (banking
-    right => aileron=-1, banking left => aileron=+1), rudder=0, elevator=0.\r\n\r\nSTEP
+    In logic, follow these steps EXACTLY:\r\n\r\nSTEP 1 - ATTITUDE CHECK (HIGHEST
+    PRIORITY - DO THIS FIRST!):\r\nCompute: right = cross(up, forward). Check |right.y|
+    for bank severity:\r\n- |right.y| > 0.87 => DANGER! Bank > 60 deg. IMMEDIATELY
+    correct roll, OVERRIDE all navigation!\r\n  (right.y > 0 => banking right =>
+    set aileron=-1; right.y < 0 => banking left => set aileron=+1; rudder=0, elevator=0)\r\n-
+    |right.y| > 0.5 => WARNING! Bank > 30 deg. Start correcting roll unless actively
+    turning toward target.\r\n- |right.y| <= 0.5 => OK, proceed to navigation.\r\nAlso
+    check up.y: up.y<0 means INVERTED => emergency roll correction!\r\n\n\r\nSTEP
     2 - NAVIGATION:\r\n1) toTarget = targetPosition - position (SUBTRACT position
     from target!)\r\n2) desiredDir = normalize(toTarget)\r\n3) navCross = cross(forward,
     desiredDir)\r\n4) If navCross.y > 0 => target is to the RIGHT => rudder=+1, aileron=+1.
