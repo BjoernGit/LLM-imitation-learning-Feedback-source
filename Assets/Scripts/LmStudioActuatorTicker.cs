@@ -18,41 +18,33 @@ public class LmStudioActuatorTicker : MonoBehaviour
     [SerializeField, TextArea(3, 10)] private string systemPrompt =
         "You control an aircraft. Respond only with one JSON object. No markdown, no code fences, no extra text. " +
         "Include a reasoning string field named \"logic\". In logic, follow these steps EXACTLY:\n\n" +
-        "STEP 1 - ATTITUDE CHECK (PRIORITY!):\n" +
-        "Compute: right = cross(up, forward). Check right.y to determine bank angle:\n" +
-        "- right.y > 0.1 => aircraft is banking RIGHT (right wing is lower)\n" +
-        "- right.y < -0.1 => aircraft is banking LEFT (left wing is lower)\n" +
-        "- |right.y| <= 0.1 => aircraft is upright\n" +
-        "Also check up.y: up.y=1 upright, up.y near 0 on its side, up.y<0 inverted.\n" +
-        "- The aircraft MUST fly upright at all times. Only allow banking during an active turn.\n" +
-        "- If banking and NOT turning: correct roll (banking right => aileron=-1, banking left => aileron=+1), rudder=0, elevator=0.\n\n" +
+        "STEP 1 - BANK CORRECTION (HIGHEST PRIORITY!):\n" +
+        "Compute: right = cross(up, forward). Check right.y:\n" +
+        "- right.y > 0.1 => banking right => aileron=-1 (counter-roll left)\n" +
+        "- right.y < -0.1 => banking left => aileron=+1 (counter-roll right)\n" +
+        "- |right.y| <= 0.1 => level => aileron=0\n" +
+        "Aileron is ONLY for keeping the aircraft level. NEVER use aileron to turn.\n\n" +
         "STEP 2 - NAVIGATION:\n" +
         "1) toTarget = targetPosition - position (SUBTRACT position from target!)\n" +
         "2) desiredDir = normalize(toTarget)\n" +
-        "3) navCross = cross(forward, desiredDir)\n" +
-        "4) If navCross.y > 0 => target is to the RIGHT => rudder=+1, aileron=+1. If navCross.y < 0 => target is LEFT => rudder=-1, aileron=-1. If nearly aligned (|navCross.y| < 0.1) => rudder=0, aileron=0.\n" +
-        "5) dotUp = dot(up, desiredDir). If dotUp > 0 => target is ABOVE => elevator=+1. If dotUp < 0 => target is BELOW => elevator=-1.\n" +
-        "6) Choose throttle: +1 to speed up, 0 to hold, -1 to slow down.\n\n" +
-        "STEP 3 - DESCRIBE YOUR MANEUVER in the logic field:\n" +
-        "- State current attitude: upright / banking left / banking right / inverted.\n" +
-        "- State planned maneuver: straight flight / turning left / turning right / leveling out / correcting roll.\n" +
-        "- State if current bank angle is proportional to the maneuver or needs correction.\n\n" +
+        "3) Compute navCrossY using this EXACT formula: navCrossY = forward.z * desiredDir.x - forward.x * desiredDir.z\n" +
+        "4) If navCrossY > 0 => target is RIGHT => rudder=+1. If navCrossY < 0 => target LEFT => rudder=-1. If |navCrossY| < 0.1 => aligned => rudder=0.\n" +
+        "5) dotUp = dot(up, desiredDir). If dotUp < -0.1 => target BELOW => elevator=+1 (pitches nose down). If dotUp > 0.1 => target ABOVE => elevator=-1 (pitches nose up). Else elevator=0.\n\n" +
+        "STEP 3 - THROTTLE: +1 to speed up, 0 to hold, -1 to slow down.\n\n" +
+        "STEP 4 - DESCRIBE in logic: bank status, heading, pitch, chosen action.\n\n" +
         "Directional input fields (like holding a keyboard key): " +
         "aileron (-1 = roll left, 0 = neutral, 1 = roll right), " +
-        "elevator (-1 = pitch down, 0 = neutral, 1 = pitch up), " +
+        "elevator (-1 = pitch nose up, 0 = neutral, 1 = pitch nose down), " +
         "rudder (-1 = yaw left, 0 = neutral, 1 = yaw right), " +
         "throttle (-1 = decrease, 0 = hold, 1 = increase), " +
         "airbrake (0 = off, 1 = on). " +
         "All values must be exactly -1, 0, or 1 (integers). Do not include wheel brakes or any other fields. Example:\n" +
         "{\n" +
-        "  \"logic\": \"ATTITUDE: right=cross(up,fwd)=cross((0,0.95,0.3),(1,0,0))=(0,0.3,-0.95); right.y=0.3>0.1 => banking right. " +
-        "up.y=0.95 => mostly upright. " +
-        "NAV: toTarget=target-pos=(-5,-15,-38); desiredDir=norm(toTarget)=(-0.12,-0.36,-0.92); " +
-        "navCross=cross(fwd,desiredDir)=(0,0.92,-0.36); navCross.y=0.92>0 => target is RIGHT. " +
-        "dotUp=dot(up,desiredDir)=-0.36<0 => target is BELOW. " +
-        "MANEUVER: turning right, bank is proportional to turn, pitch down to descend.\",\n" +
-        "  \"aileron\": 1,\n" +
-        "  \"elevator\": -1,\n" +
+        "  \"logic\": \"toTarget=target-pos=(-5,-15,-38); desiredDir=(-0.12,-0.36,-0.92); " +
+        "navCrossY = fwd.z*dir.x - fwd.x*dir.z = 0*(-0.12) - 1*(-0.92) = 0.92 > 0 => target RIGHT => rudder=+1. " +
+        "dotUp=dot(up,desiredDir)=-0.36<-0.1 => target BELOW => elevator=+1 (nose down). Throttle up.\",\n" +
+        "  \"aileron\": 0,\n" +
+        "  \"elevator\": 1,\n" +
         "  \"rudder\": 1,\n" +
         "  \"throttle\": 1,\n" +
         "  \"airbrake\": 0\n" +
