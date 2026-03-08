@@ -8,7 +8,6 @@ using UnityEngine;
 /// Ticker that periodically queries LM Studio with observations and applies the response as an ActuatorCommand.
 /// Lives on the same GameObject as PlaneActuatorController.
 /// </summary>
-[RequireComponent(typeof(PlaneActuatorController))]
 public class LmStudioActuatorTicker : MonoBehaviour
 {
     [Header("LM Studio Connection")]
@@ -62,9 +61,7 @@ public class LmStudioActuatorTicker : MonoBehaviour
     [Header("Target")]
     [SerializeField] private Transform packageTarget;
 
-    [Header("References")]
-    [SerializeField] private PlaneActuatorController actuator;
-
+    private ILlmControllable _controllable;
     private LmStudioClient _client;
     private CancellationTokenSource _cts;
     private bool _loopRunning;
@@ -74,8 +71,9 @@ public class LmStudioActuatorTicker : MonoBehaviour
 
     private void Awake()
     {
-        if (!actuator)
-            actuator = GetComponent<PlaneActuatorController>();
+        _controllable = GetComponent<ILlmControllable>();
+        if (_controllable == null)
+            Debug.LogError("LmStudioActuatorTicker: No ILlmControllable found on this GameObject.", this);
 
         _client = new LmStudioClient(baseUrl, apiKey);
     }
@@ -183,8 +181,7 @@ public class LmStudioActuatorTicker : MonoBehaviour
 
     private List<(string role, string content)> BuildMessages()
     {
-        var obs = BuildObservation();
-        var obsJson = JsonUtility.ToJson(obs, true);
+        var obsJson = _controllable.BuildObservationJson(_velocity, packageTarget);
         return new List<(string role, string content)>
         {
             ("system", systemPrompt),
@@ -192,24 +189,9 @@ public class LmStudioActuatorTicker : MonoBehaviour
         };
     }
 
-    private PlaneObservation BuildObservation()
-    {
-        var cmd = actuator ? actuator.Current : default;
-        var targetPos = packageTarget ? packageTarget.position : Vector3.zero;
-        return new PlaneObservation
-        {
-            position = transform.position,
-            forward = transform.forward,
-            up = transform.up,
-            velocity = _velocity,
-            targetPosition = targetPos,
-            lastCommand = cmd
-        };
-    }
-
     private void ApplyResponse(string reply)
     {
-        if (!actuator)
+        if (_controllable == null)
             return;
 
         var json = ExtractFirstJson(reply);
@@ -219,7 +201,7 @@ public class LmStudioActuatorTicker : MonoBehaviour
             return;
         }
 
-        actuator.TryApplyJson(json);
+        _controllable.TryApplyJson(json);
     }
 
     private static string ExtractFirstJson(string text)
@@ -239,14 +221,4 @@ public class LmStudioActuatorTicker : MonoBehaviour
         StopLoop();
     }
 
-    [Serializable]
-    private struct PlaneObservation
-    {
-        public Vector3 position;
-        public Vector3 forward;
-        public Vector3 up;
-        public Vector3 velocity;
-        public Vector3 targetPosition;
-        public PlaneActuatorController.ActuatorCommand lastCommand;
-    }
 }
