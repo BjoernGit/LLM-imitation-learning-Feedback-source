@@ -1,48 +1,97 @@
+using System;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
 using UnityEngine.InputSystem;
 #endif
 
 /// <summary>
-/// Simple, non-physical car motion that responds to actuator inputs.
-/// Pulls commands from CarActuatorController and offers keyboard debug override.
-/// Attach to the same GameObject as CarActuatorController.
+/// Simple, non-physical car motion with integrated LLM command parsing.
+/// Handles observation building, JSON parsing, keyboard debug, and movement.
 /// </summary>
-[RequireComponent(typeof(CarActuatorController))]
-public class SimpleCarPhysics : MonoBehaviour
+public class SimpleCarPhysics : MonoBehaviour, ILlmControllable
 {
-    [Header("Input Sources")]
-    [SerializeField] private CarActuatorController actuatorSource;
-    [SerializeField] private bool pullFromLlm = true;
+    [Header("Input")]
     [SerializeField] private bool enableKeyboardDebug = true;
 
     [Header("Motion Tuning")]
-    [SerializeField] private float maxSpeed = 12f;           // m/s at full throttle
-    [SerializeField] private float acceleration = 8f;        // m/s^2
-    [SerializeField] private float brakeDeceleration = 15f;  // m/s^2
-    [SerializeField] private float drag = 2f;                // natural slowdown m/s^2
-    [SerializeField] private float maxSteerAngle = 35f;      // degrees per second at full lock
-    [SerializeField] private float steerSpeedFactor = 1f;    // steering tightens with speed (higher = more effect)
+    [SerializeField] private float maxSpeed = 12f;
+    [SerializeField] private float acceleration = 8f;
+    [SerializeField] private float drag = 2f;
+    [SerializeField] private float maxSteerAngle = 35f;
+    [SerializeField] private float steerSpeedFactor = 1f;
 
-    private CarActuatorController.CarCommand _inputs;
+    [Header("Debug")]
+    [SerializeField] private bool logParseErrors = true;
+    [SerializeField] private bool logIncomingJson = false;
+
+    [SerializeField] private CarCommand _current;
     private float _currentSpeed;
 
-    private void Awake()
+    [Serializable]
+    public struct CarCommand
     {
-        if (!actuatorSource)
-            actuatorSource = GetComponent<CarActuatorController>();
+        public string logic;
+        public float steer;
+        public float throttle;
+
+        public void Clamp()
+        {
+            steer = Mathf.Clamp(steer, -1f, 1f);
+            throttle = Mathf.Clamp(throttle, -1f, 1f);
+        }
     }
+
+    public CarCommand Current => _current;
+
+    // --- ILlmControllable ---
+
+    public bool TryApplyJson(string json)
+    {
+        try
+        {
+            if (logIncomingJson)
+                Debug.Log($"Car actuator JSON received:\n{json}");
+
+            var cleaned = StripLineComments(json);
+            var cmd = JsonUtility.FromJson<CarCommand>(cleaned);
+            cmd.Clamp();
+            _current = cmd;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            if (logParseErrors)
+                Debug.LogWarning($"Failed to parse car actuator JSON: {ex.Message}\nInput: {json}");
+            return false;
+        }
+    }
+
+    public string BuildObservationJson(Vector3 velocity, Transform target)
+    {
+        var targetPos = target ? target.position : Vector3.zero;
+        var obs = new CarObservation
+        {
+            position = transform.position,
+            forward = transform.forward,
+            velocity = velocity,
+            speed = velocity.magnitude,
+            targetPosition = targetPos,
+            lastCommand = _current
+        };
+        return JsonUtility.ToJson(obs, true);
+    }
+
+    // --- Update loop ---
 
     private void Update()
     {
-        if (pullFromLlm && actuatorSource != null)
-            _inputs = actuatorSource.Current;
-
         if (enableKeyboardDebug)
             ApplyKeyboardDebug();
 
         ApplyMotion(Time.deltaTime);
     }
+
+    // --- Keyboard debug ---
 
     private void ApplyKeyboardDebug()
     {
@@ -51,59 +100,68 @@ public class SimpleCarPhysics : MonoBehaviour
         if (kb == null)
             return;
 
-        float steerInput = (kb.aKey.isPressed ? -1f : 0f) + (kb.dKey.isPressed ? 1f : 0f);
-        float throttleInput = (kb.wKey.isPressed ? 1f : 0f) + (kb.sKey.isPressed ? -1f : 0f);
-        float brakeInput = kb.spaceKey.isPressed ? 1f : 0f;
-        float handbrakeInput = kb.leftShiftKey.isPressed ? 1f : 0f;
+        bool anyKey = kb.wKey.isPressed || kb.sKey.isPressed || kb.aKey.isPressed || kb.dKey.isPressed;
+        if (!anyKey)
+            return;
 
-        _inputs.steer = steerInput;
-        _inputs.throttle = throttleInput;
-        _inputs.brake = brakeInput;
-        _inputs.handbrake = handbrakeInput;
+        _current.steer = (kb.aKey.isPressed ? -1f : 0f) + (kb.dKey.isPressed ? 1f : 0f);
+        _current.throttle = (kb.wKey.isPressed ? 1f : 0f) + (kb.sKey.isPressed ? -1f : 0f);
 #else
-        float steerInput = Input.GetAxisRaw("Horizontal");
-        float throttleInput = Input.GetAxisRaw("Vertical");
-        float brakeInput = Input.GetKey(KeyCode.Space) ? 1f : 0f;
-        float handbrakeInput = Input.GetKey(KeyCode.LeftShift) ? 1f : 0f;
+        bool anyKey = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.D);
+        if (!anyKey)
+            return;
 
-        _inputs.steer = steerInput;
-        _inputs.throttle = throttleInput;
-        _inputs.brake = brakeInput;
-        _inputs.handbrake = handbrakeInput;
+        _current.steer = Input.GetAxisRaw("Horizontal");
+        _current.throttle = Input.GetAxisRaw("Vertical");
 #endif
     }
 
+    // --- Motion ---
+
     private void ApplyMotion(float dt)
     {
-        // Acceleration / braking
-        float targetSpeed = _inputs.throttle * maxSpeed;
-        float totalBrake = Mathf.Max(_inputs.brake, _inputs.handbrake);
+        float targetSpeed = _current.throttle * maxSpeed;
+        _currentSpeed = Mathf.MoveTowards(_currentSpeed, targetSpeed, acceleration * dt);
 
-        if (totalBrake > 0.01f)
-        {
-            // Braking: decelerate towards zero
-            _currentSpeed = Mathf.MoveTowards(_currentSpeed, 0f, brakeDeceleration * totalBrake * dt);
-        }
-        else
-        {
-            // Accelerate towards target speed
-            _currentSpeed = Mathf.MoveTowards(_currentSpeed, targetSpeed, acceleration * dt);
-        }
-
-        // Natural drag
-        if (Mathf.Abs(_inputs.throttle) < 0.01f && totalBrake < 0.01f)
+        if (Mathf.Abs(_current.throttle) < 0.01f)
             _currentSpeed = Mathf.MoveTowards(_currentSpeed, 0f, drag * dt);
 
-        // Forward movement
         transform.position += transform.forward * (_currentSpeed * dt);
 
-        // Steering — tighter at low speed, wider at high speed
         if (Mathf.Abs(_currentSpeed) > 0.1f)
         {
             float speedRatio = Mathf.Abs(_currentSpeed) / maxSpeed;
-            float steerAmount = _inputs.steer * maxSteerAngle * Mathf.Lerp(1f, 0.4f, speedRatio * steerSpeedFactor);
-            float direction = Mathf.Sign(_currentSpeed); // reverse steering when going backwards
+            float steerAmount = _current.steer * maxSteerAngle * Mathf.Lerp(1f, 0.4f, speedRatio * steerSpeedFactor);
+            float direction = Mathf.Sign(_currentSpeed);
             transform.Rotate(0f, steerAmount * direction * dt, 0f, Space.Self);
         }
+    }
+
+    // --- Helpers ---
+
+    [Serializable]
+    private struct CarObservation
+    {
+        public Vector3 position;
+        public Vector3 forward;
+        public Vector3 velocity;
+        public float speed;
+        public Vector3 targetPosition;
+        public CarCommand lastCommand;
+    }
+
+    private static string StripLineComments(string json)
+    {
+        if (string.IsNullOrEmpty(json))
+            return json;
+
+        var lines = json.Split('\n');
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var idx = lines[i].IndexOf("//", StringComparison.Ordinal);
+            if (idx >= 0)
+                lines[i] = lines[i].Substring(0, idx);
+        }
+        return string.Join("\n", lines);
     }
 }

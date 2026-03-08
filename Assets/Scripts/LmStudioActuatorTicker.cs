@@ -6,7 +6,7 @@ using UnityEngine;
 
 /// <summary>
 /// Ticker that periodically queries LM Studio with observations and applies the response as an ActuatorCommand.
-/// Lives on the same GameObject as PlaneActuatorController.
+/// Lives on the same GameObject as any ILlmControllable (e.g. SimplePlanePhysics, SimpleCarPhysics).
 /// </summary>
 public class LmStudioActuatorTicker : MonoBehaviour
 {
