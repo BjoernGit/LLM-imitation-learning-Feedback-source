@@ -691,7 +691,7 @@ MonoBehaviour:
   maxTokens: 1000
   tickIntervalSeconds: 0.5
   requestTimeoutSeconds: 8
-  autoStart: 1
+  autoStart: 0
   logRawReply: 1
   llmTimeScale: 0.1
   packageTarget: {fileID: 1257349810}
@@ -707,12 +707,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 43ac41c39edbb1c4681d34b3698793d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SimpleCarPhysics
-  enableKeyboardDebug: 0
+  enableKeyboardDebug: 1
   maxSpeed: 12
   acceleration: 8
   drag: 2
   maxSteerAngle: 35
-  steerSpeedFactor: 1
+  steerAtMaxSpeed: 0.8
+  steerAtZeroSpeed: 1
   logParseErrors: 1
   logIncomingJson: 0
   _current:
@@ -1098,7 +1099,7 @@ Transform:
   m_GameObject: {fileID: 1257349806}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -4.12433, y: 2.38, z: -141.6}
+  m_LocalPosition: {x: -14.7, y: 2.38, z: -28.6}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

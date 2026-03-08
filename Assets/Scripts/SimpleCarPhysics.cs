@@ -18,7 +18,8 @@ public class SimpleCarPhysics : MonoBehaviour, ILlmControllable
     [SerializeField] private float acceleration = 8f;
     [SerializeField] private float drag = 2f;
     [SerializeField] private float maxSteerAngle = 35f;
-    [SerializeField] private float steerSpeedFactor = 1f;
+    [SerializeField, Range(0f, 1f)] private float steerAtMaxSpeed = 0.4f;
+    [SerializeField, Range(0f, 1f)] private float steerAtZeroSpeed = 1f;
 
     [Header("Debug")]
     [SerializeField] private bool logParseErrors = true;
@@ -26,6 +27,7 @@ public class SimpleCarPhysics : MonoBehaviour, ILlmControllable
 
     [SerializeField] private CarCommand _current;
     private float _currentSpeed;
+    private bool _llmActive;
 
     [Serializable]
     public struct CarCommand
@@ -56,6 +58,7 @@ public class SimpleCarPhysics : MonoBehaviour, ILlmControllable
             var cmd = JsonUtility.FromJson<CarCommand>(cleaned);
             cmd.Clamp();
             _current = cmd;
+            _llmActive = true;
             return true;
         }
         catch (Exception ex)
@@ -101,14 +104,22 @@ public class SimpleCarPhysics : MonoBehaviour, ILlmControllable
             return;
 
         bool anyKey = kb.wKey.isPressed || kb.sKey.isPressed || kb.aKey.isPressed || kb.dKey.isPressed;
-        if (!anyKey)
+
+        if (anyKey)
+            _llmActive = false;
+
+        if (_llmActive)
             return;
 
         _current.steer = (kb.aKey.isPressed ? -1f : 0f) + (kb.dKey.isPressed ? 1f : 0f);
         _current.throttle = (kb.wKey.isPressed ? 1f : 0f) + (kb.sKey.isPressed ? -1f : 0f);
 #else
         bool anyKey = Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.D);
-        if (!anyKey)
+
+        if (anyKey)
+            _llmActive = false;
+
+        if (_llmActive)
             return;
 
         _current.steer = Input.GetAxisRaw("Horizontal");
@@ -120,18 +131,21 @@ public class SimpleCarPhysics : MonoBehaviour, ILlmControllable
 
     private void ApplyMotion(float dt)
     {
+        // Acceleration towards target speed
         float targetSpeed = _current.throttle * maxSpeed;
         _currentSpeed = Mathf.MoveTowards(_currentSpeed, targetSpeed, acceleration * dt);
 
-        if (Mathf.Abs(_current.throttle) < 0.01f)
-            _currentSpeed = Mathf.MoveTowards(_currentSpeed, 0f, drag * dt);
+        // Drag always applies (rolling resistance / air resistance)
+        _currentSpeed = Mathf.MoveTowards(_currentSpeed, 0f, drag * dt);
 
         transform.position += transform.forward * (_currentSpeed * dt);
 
-        if (Mathf.Abs(_currentSpeed) > 0.1f)
+        // Steering — lerp between configurable rates at zero vs max speed
+        if (Mathf.Abs(_currentSpeed) > 0.01f)
         {
-            float speedRatio = Mathf.Abs(_currentSpeed) / maxSpeed;
-            float steerAmount = _current.steer * maxSteerAngle * Mathf.Lerp(1f, 0.4f, speedRatio * steerSpeedFactor);
+            float speedRatio = Mathf.Clamp01(Mathf.Abs(_currentSpeed) / maxSpeed);
+            float steerScale = Mathf.Lerp(steerAtZeroSpeed, steerAtMaxSpeed, speedRatio);
+            float steerAmount = _current.steer * maxSteerAngle * steerScale;
             float direction = Mathf.Sign(_currentSpeed);
             transform.Rotate(0f, steerAmount * direction * dt, 0f, Space.Self);
         }
