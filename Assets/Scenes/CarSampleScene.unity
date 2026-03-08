@@ -666,28 +666,34 @@ MonoBehaviour:
   model: your-model-identifier
   systemPrompt: "You control a car. Respond only with one JSON object. No markdown,
     no code fences, no extra text. Include a reasoning string field named \"logic\".
-    In logic, follow these steps EXACTLY:\r\n\r\nSTEP 1 - NAVIGATION:\r\n1) toTarget
-    = targetPosition - position (SUBTRACT position from target!)\r\n2) desiredDir
-    = normalize(toTarget) (only use x and z, ignore y)\r\n3) navCrossY = forward.z
-    * desiredDir.x - forward.x * desiredDir.z\r\n4) dotFwd = forward.x * desiredDir.x
-    + forward.z * desiredDir.z\r\n5) angleDeg = atan2(|navCrossY|, dotFwd) * 57.3
-    (convert radians to degrees)\r\n6) If angleDeg < 10 => steer=0 (close enough,
-    drive straight)\r\n7) Else if navCrossY > 0 => steer=+1 (turn right). If navCrossY
-    < 0 => steer=-1 (turn left).\r\n\r\nSTEP 2 - SPEED:\r\n1) distance = length(toTarget).
-    Round to whole number.\r\n2) If distance < 10 => throttle=0 (stop, arrived).\r\n3)
-    Else throttle=+1 (drive forward).\r\n\r\nSTEP 3 - DESCRIBE in logic: angle in
-    degrees, direction, distance, chosen action. Keep logic under 20 words. Round
-    all numbers to 1 decimal max.\r\n\r\nOutput fields: steer (-1, 0, or 1), throttle
-    (-1, 0, or 1). Integers only. Example:\r\n{\r\n  \"logic\": \"angle=25deg RIGHT,
-    dist=42m, steering right and driving\",\r\n  \"steer\": 1,\r\n  \"throttle\":
-    1\r\n}\r\n"
+    In logic, you MUST show every formula, then substitute the actual numbers, then
+    compute the result, then state your conclusion in words. This chain of thought
+    is mandatory.\r\n\r\nSTEPS to follow in logic:\r\n1) toTarget = targetPosition
+    - position\r\n2) desiredDir = normalize(toTarget) using only x and z\r\n3) navCrossY
+    = forward.z * desiredDir.x - forward.x * desiredDir.z\r\n4) dotFwd = forward.x
+    * desiredDir.x + forward.z * desiredDir.z\r\n5) angleDeg = atan2(|navCrossY|,
+    dotFwd) * 57.3\r\n6) distance = sqrt(toTarget.x^2 + toTarget.z^2)\r\n7) Decide
+    steer: angleDeg < 10 => steer=0. Else navCrossY > 0 => steer=+1, navCrossY <
+    0 => steer=-1.\r\n8) Decide throttle: distance < 10 => throttle=0. Else throttle=+1.\r\n\r\nsteer:
+    -1 (left), 0 (straight), 1 (right). throttle: -1 (reverse), 0 (stop), 1 (forward).
+    Integers only.\r\n\r\nExample output:\r\n{\r\n  \"logic\": \"Step 1: toTarget
+    = targetPosition - position = (10,0,-5) - (0,0,0) = (10,0,-5). Step 2: length_xz
+    = sqrt(10^2 + (-5)^2) = sqrt(125) = 11.18. desiredDir = (10/11.18, 0, -5/11.18)
+    = (0.89, 0, -0.45). Step 3: navCrossY = forward.z * desiredDir.x - forward.x
+    * desiredDir.z = 1 * 0.89 - 0 * (-0.45) = 0.89 - 0 = 0.89. Step 4: dotFwd = forward.x
+    * desiredDir.x + forward.z * desiredDir.z = 0 * 0.89 + 1 * (-0.45) = -0.45. Step
+    5: angleDeg = atan2(|0.89|, -0.45) * 57.3 = atan2(0.89, -0.45) * 57.3 = 2.04
+    * 57.3 = 116.9 degrees. Step 6: distance = 11.18. Step 7: angleDeg 116.9 > 10
+    and navCrossY 0.89 > 0, so the target is to my RIGHT. I must steer right. steer=+1.
+    Step 8: distance 11.18 > 10, so I should drive forward. throttle=+1.\",\r\n 
+    \"steer\": 1,\r\n  \"throttle\": 1\r\n}\r\n"
   temperature: 0.4
   maxTokens: 1000
   tickIntervalSeconds: 0.5
   requestTimeoutSeconds: 8
   autoStart: 1
   logRawReply: 1
-  llmTimeScale: 0.3
+  llmTimeScale: 0.1
   packageTarget: {fileID: 1257349810}
 --- !u!114 &570514731
 MonoBehaviour:
