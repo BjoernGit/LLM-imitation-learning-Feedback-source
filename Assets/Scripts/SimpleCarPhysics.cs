@@ -26,7 +26,7 @@ public class SimpleCarPhysics : MonoBehaviour, ILlmControllable
     [SerializeField] private bool logIncomingJson = false;
 
     [SerializeField] private CarCommand _current;
-    private float _currentSpeed;
+    [SerializeField] private float _currentSpeed;
     private bool _llmActive;
 
     [Serializable]

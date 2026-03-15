@@ -664,36 +664,34 @@ MonoBehaviour:
   baseUrl: http://localhost:1234/v1
   apiKey: lm-studio
   model: your-model-identifier
-  systemPrompt: "You control a car. Respond only with one JSON object. No markdown,
-    no code fences, no extra text. Include a reasoning string field named \"logic\".
+  systemPrompt: 'You control a car. Respond only with one JSON object. No markdown,
+    no code fences, no extra text. Include a reasoning string field named "logic".
     In logic, you MUST show every formula, then substitute the actual numbers, then
     compute the result, then state your conclusion in words. This chain of thought
-    is mandatory.\r\n\r\nSTEPS to follow in logic:\r\n1) toTarget = targetPosition
-    - position\r\n2) desiredDir = normalize(toTarget) using only x and z\r\n3) navCrossY
-    = forward.z * desiredDir.x - forward.x * desiredDir.z\r\n4) dotFwd = forward.x
-    * desiredDir.x + forward.z * desiredDir.z\r\n5) angleDeg = atan2(|navCrossY|,
-    dotFwd) * 57.3\r\n6) distance = sqrt(toTarget.x^2 + toTarget.z^2)\r\n7) Decide
-    steer: angleDeg < 10 => steer=0. Else navCrossY > 0 => steer=+1, navCrossY <
-    0 => steer=-1.\r\n8) Decide throttle: distance < 10 => throttle=0. Else throttle=+1.\r\n\r\nsteer:
-    -1 (left), 0 (straight), 1 (right). throttle: -1 (reverse), 0 (stop), 1 (forward).
-    Integers only.\r\n\r\nExample output:\r\n{\r\n  \"logic\": \"Step 1: toTarget
-    = targetPosition - position = (10,0,-5) - (0,0,0) = (10,0,-5). Step 2: length_xz
-    = sqrt(10^2 + (-5)^2) = sqrt(125) = 11.18. desiredDir = (10/11.18, 0, -5/11.18)
-    = (0.89, 0, -0.45). Step 3: navCrossY = forward.z * desiredDir.x - forward.x
-    * desiredDir.z = 1 * 0.89 - 0 * (-0.45) = 0.89 - 0 = 0.89. Step 4: dotFwd = forward.x
-    * desiredDir.x + forward.z * desiredDir.z = 0 * 0.89 + 1 * (-0.45) = -0.45. Step
-    5: angleDeg = atan2(|0.89|, -0.45) * 57.3 = atan2(0.89, -0.45) * 57.3 = 2.04
-    * 57.3 = 116.9 degrees. Step 6: distance = 11.18. Step 7: angleDeg 116.9 > 10
-    and navCrossY 0.89 > 0, so the target is to my RIGHT. I must steer right. steer=+1.
-    Step 8: distance 11.18 > 10, so I should drive forward. throttle=+1.\",\r\n 
-    \"steer\": 1,\r\n  \"throttle\": 1\r\n}\r\n"
+    is mandatory.  STEPS to follow in logic: 1) toTarget = targetPosition - position
+    2) desiredDir = normalize(toTarget) using only x and z 3) navCrossY = forward.z
+    * desiredDir.x - forward.x * desiredDir.z 4) dotFwd = forward.x * desiredDir.x
+    + forward.z * desiredDir.z 5) angleDeg = atan2(|navCrossY|, dotFwd) * 57.3 6)
+    distance = sqrt(toTarget.x^2 + toTarget.z^2) 7) Decide steer: angleDeg < 10 =>
+    steer=0. Else navCrossY > 0 => steer=+1, navCrossY < 0 => steer=-1. 8) Decide
+    throttle:    - If distance < 10 => throttle=0 (close enough, stop).    - If angleDeg
+    > 30 AND speed > 5 => throttle=0 (too fast to turn tightly, let drag slow down).   
+    - Else throttle=+1 (drive forward).  steer: -1 (left), 0 (straight), 1 (right).
+    throttle: -1 (reverse), 0 (stop), 1 (forward). Integers only.  Example output:
+    {   "logic": "Step 1: toTarget = (10,0,-5) - (0,0,0) = (10,0,-5). Step 2: length_xz
+    = sqrt(100+25) = 11.18. desiredDir = (0.89, 0, -0.45). Step 3: navCrossY = 1*0.89
+    - 0*(-0.45) = 0.89. Step 4: dotFwd = 0*0.89 + 1*(-0.45) = -0.45. Step 5: angleDeg
+    = atan2(0.89, -0.45)*57.3 = 116.9. Step 6: distance = 11.18. Step 7: angleDeg
+    116.9 > 10 and navCrossY 0.89 > 0 => steer=+1. Step 8: distance 11.18 > 10. angleDeg
+    116.9 > 30 AND speed 7.2 > 5 => throttle=0 (too fast, slow down to turn tighter).",  
+    "steer": 1,   "throttle": 0 } '
   temperature: 0.4
   maxTokens: 1000
   tickIntervalSeconds: 0.5
   requestTimeoutSeconds: 8
   autoStart: 1
   logRawReply: 1
-  llmTimeScale: 0.2
+  llmTimeScale: 0.1
   packageTarget: {fileID: 1257349810}
 --- !u!114 &570514731
 MonoBehaviour:
@@ -752,8 +750,8 @@ MonoBehaviour:
   agent: {fileID: 570514729}
   package: {fileID: 1257349810}
   collectionRadius: 10
-  minSpawnRadius: 30
-  maxSpawnRadius: 80
+  minSpawnRadius: 20
+  maxSpawnRadius: 50
   spawnY: 1
   packagesCollected: 0
 --- !u!4 &681779408
