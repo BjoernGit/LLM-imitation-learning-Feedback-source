@@ -155,9 +155,15 @@ public class LmStudioActuatorTicker : MonoBehaviour
                 if (!token.IsCancellationRequested && !string.IsNullOrWhiteSpace(reply))
                     ApplyResponse(reply);
             }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                // Only break the loop when the *outer* token is cancelled (StopLoop called).
+                break;
+            }
             catch (OperationCanceledException)
             {
-                break;
+                // Request-level timeout — log and continue with next tick.
+                Debug.LogWarning("LM ticker: request timed out, retrying next tick.");
             }
             catch (Exception ex)
             {
